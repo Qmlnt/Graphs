@@ -14,6 +14,9 @@ background = (0, 0, 0)
 
 # Data
 to_tick = []
+to_check = []
+keyboard = pg.key.get_pressed() # For later use
+
 
 # Classes and supporting functions
 class Halt:
@@ -47,8 +50,43 @@ def tick_all():
         func.tick()
 
 
-test_func = Halt(lambda a: print("Works", a), FPS/2)
+class Keys:
+    """Call the function when the given keys are pressed."""
+    def __init__(self, func, *keys: tuple) -> None:
+        self.func = func
+        self.keys = keys
+        to_check.append(self)
 
+    @staticmethod
+    def key_check(keys) -> bool:
+        """return True if the keys were pressed, else False."""
+        for key in keys:
+            if type(key) in [list, tuple]:
+                for k in key:
+                    if not keyboard[k]:
+                        break
+                else:
+                    return True
+            elif keyboard[key]:
+                return True  
+        return False
+
+    def check(self, *args, **kwargs) -> bool:
+        """Check the keys and return func(), or return False."""
+        if self.key_check(self.keys):
+            self.func(*args, **kwargs)
+            return True
+        return False
+
+def check_all():
+    for func in to_check:
+        if func.check():
+            break
+
+
+test_func = Halt(lambda: print("Works"), FPS/2)
+test_keys = Keys(test_func, [pg.K_a, pg.K_d], pg.K_p, pg.K_q)
+test_keys2 = Keys(Halt(lambda: print("Works 2"), FPS), pg.K_q, pg.K_s)
 
 executing = True
 while executing:
@@ -59,7 +97,8 @@ while executing:
     keyboard = pg.key.get_pressed()
     main_window.fill(background)
 
+    check_all()
     tick_all()
-    test_func(":)")
+
     pg.display.update()
     timer.tick(FPS)
