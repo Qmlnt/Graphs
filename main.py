@@ -24,6 +24,7 @@ selected_number_color = (0, 255, 0)
 # sizes
 edge_width = 4
 dot_radius = 15
+move_speed = 1
 # fonts
 number_font = pg.font.SysFont("Comic Sans MS", dot_radius*2)
 
@@ -71,9 +72,10 @@ def tick_all():
 
 class Keys:
     """Call the function when the given keys are pressed."""
-    def __init__(self, func, *keys: tuple) -> None:
+    def __init__(self, func, *keys: tuple, block: bool = True) -> None:
         self.func = func
         self.keys = keys
+        self.block = block
         to_check.append(self)
 
     @staticmethod
@@ -91,7 +93,7 @@ class Keys:
         return False
 
     def check(self, *args, **kwargs) -> bool:
-        """Check the keys and return func(), or return False."""
+        """Check the keys and return True, or return False."""
         if self.key_check(self.keys):
             self.func(*args, **kwargs)
             return True
@@ -99,11 +101,29 @@ class Keys:
 
 def check_all():
     for func in to_check:
-        if func.check():
-            break
+        if func.check() and func.block:
+                break
 
 
 # Main functions
+def save(save_as: str = None):
+    """Save the graph."""
+    if not save_as:
+        save_as = f"graphs/{ctime()}.json".replace(':', '-')
+    with open(save_as, "w") as file:
+        json.dump([dot_name, dots, graph.graph], file)
+    print("Saved to ", save_as)
+
+def load(path: str = None):
+    """Load some graph."""
+    global dot_name, dots, graph
+    selected.clear()
+    if not path:
+        path = input("What file to open: ")
+    with open(path, 'r') as file:
+        dot_name, dots, graph.graph = json.load(file)
+    print("Loaded from ", path)
+
 def distance(pos1: tuple, pos2: tuple) -> int:
     """Return the distance between two positions."""
     return int(((pos1[0]-pos2[0])**2 + (pos1[1]-pos2[1])**2) ** 0.5)
@@ -132,6 +152,16 @@ def select_dot():
     elif dot is not None:
         selected.append(dot)
 
+def select_all():
+    """Select all dots in the graph."""
+    global selected
+    selected = list(dots.keys())
+
+def move(x: int = 0, y: int = 0):
+    """Move selected dots."""
+    for dot in selected:
+        dots[dot] = (dots[dot][0] + x, dots[dot][1] + y)
+
 def rem_selected():
     """Remove selected dots from the graph."""
     for dot in selected:
@@ -145,6 +175,7 @@ def connect_dots():
         first, second = selected
         if not graph.rem_edge(first, second):
             graph.add_edge(first, second, distance(dots[first], dots[second]))
+        selected.clear()
 
 def escape():
     """Undo selection."""
@@ -153,11 +184,18 @@ def escape():
 
 
 # Functionality
+Keys(Halt(save, key_cooldown), [pg.K_LCTRL, pg.K_s])
+Keys(Halt(load, key_cooldown), [pg.K_LCTRL, pg.K_l])
+Keys(Halt(select_all, key_cooldown), [pg.K_LCTRL, pg.K_a])
+Keys(Halt(escape, key_cooldown), pg.K_ESCAPE)
 Keys(Halt(add_dot, key_cooldown), pg.K_a)
 Keys(Halt(select_dot, key_cooldown), pg.K_s)
-Keys(Halt(escape, key_cooldown), pg.K_ESCAPE)
 Keys(Halt(rem_selected, key_cooldown), pg.K_d, pg.K_DELETE)
 Keys(Halt(connect_dots, key_cooldown), pg.K_c, pg.K_e)
+Keys(lambda: move(0, -move_speed), pg.K_UP, block=False)
+Keys(lambda: move(0, move_speed), pg.K_DOWN, block=False)
+Keys(lambda: move(-move_speed, 0), pg.K_LEFT, block=False)
+Keys(lambda: move(move_speed, 0), pg.K_RIGHT, block=False)
 
 
 executing = True
