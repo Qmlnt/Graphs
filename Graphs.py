@@ -76,3 +76,36 @@ class Graph:
                 if not (edge in edges or edge[::-1] in edges):
                     edges.append(edge)
         return edges
+
+    def dijkstras_algorithm(self, vertex1: str, vertex2: str) -> float:
+        """Find the shortest distance from vertex1 to vertex2."""
+        if vertex1 not in self.graph or vertex2 not in self.graph:
+            return -1
+        if vertex1 == vertex2:
+            return 0
+
+        data = {vertex: [10**10, '-'] for vertex in self.graph.keys()}
+        data[vertex1] = [0, vertex1]
+        unvisited = sorted(self.get_vertices(), key=lambda x: data[x][0])
+
+        while unvisited:
+            current = unvisited[0]
+            for vertex in self.graph[current]:
+                if vertex in unvisited:
+                    new_dist = self.graph[current][vertex]+data[current][0]
+                    if new_dist < data[vertex][0]:
+                        data[vertex] = [new_dist, current]
+
+            unvisited.remove(current)
+            unvisited = sorted(unvisited, key=lambda x: data[x][0])
+
+        return data
+
+
+# Some testing
+if __name__ == "__main__":
+    import json
+    graph = Graph()
+    with open(r"graphs\Fri Jul 29 10-28-40 2022.json", 'r') as file:
+        graph.graph = json.load(file)[-1]
+    print(graph.dijkstras_algorithm("1", "7"))

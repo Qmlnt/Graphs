@@ -15,16 +15,18 @@ W, H = 1920/2, 1080/2
 main_window = pg.display.set_mode((W, H))
 # colors
 background = (0, 0, 0)
-dot_color = (255, 255, 255)
-dot_number_color = (255, 0, 0)
-edge_color = (0, 255, 0)
-edge_number_color = (255, 0, 255)
-selected_color = (255, 0, 255)
-selected_number_color = (0, 255, 0)
+dot_color = (100, 100, 255)
+dot_number_color = (0, 255, 0)
+edge_color = (100, 200, 255)
+edge_number_color = (255, 200, 100)
+path_color = (255, 100, 100)
+selected_color = (200, 0, 255)
+selected_number_color = (255, 255, 255)
 text_on_colour = (100, 255, 100)
-text_off_colour = (255, 100, 100)
+text_off_colour = (150, 50, 100)
 # sizes
 edge_width = 4
+path_width = 6
 dot_radius = 15
 move_speed = 1
 # fonts
@@ -35,6 +37,8 @@ text_font = pg.font.SysFont("Arial", 40)
 graph = Graph()
 dots = {}
 dot_name = 0
+path = []
+path_distance = 0
 selected = []
 to_tick = []
 to_check = []
@@ -102,17 +106,19 @@ class Keys:
 
 class Select:
     """Call given function when given number of dots were selected."""
-    def __init__(self, func, number: int, block: bool = False) -> None:
+    def __init__(self, func, number: int, block: bool = False, stop = lambda: False) -> None:
         self.func = func
         self.number = number
         self.block = block
+        self.stop = stop
         to_check.insert(0, self) # So it won't be blocked.
 
     def check(self):
         """return True if len(selected) has reached the number, else False."""
+        if self.stop():
+            to_check.remove(self)
         if len(selected) == self.number:
             self.func()
-            to_check.remove(self)
             return True
         return False
 
@@ -193,32 +199,47 @@ def rem_selected():
 
 def edge_mode_func():
     """Add or remove an edge between two dots."""
-    if edge_mode:
-        first, second = selected
-        if not graph.rem_edge(first, second):
-            graph.add_edge(first, second, distance(dots[first], dots[second]))
-        selected.remove(selected[0])
-        Select(edge_mode_func, 2) # The old one will remove itself
+    first, second = selected
+    if not graph.rem_edge(first, second):
+        graph.add_edge(first, second, distance(dots[first], dots[second]))
+    selected.remove(selected[0])
 
 def toggle_edge_mode():
+    """Enable or disable edge mode."""
     global edge_mode
     if edge_mode:
         edge_mode = False
     else:
         edge_mode = True
-        Select(edge_mode_func, 2)
+        Select(edge_mode_func, 2, stop=lambda: not edge_mode)
+
+def dijkstras_algorithm():
+    """Count shortest path using Dijkstra's algorithm."""
+    global path_distance, path
+    start, end = selected
+    result = graph.dijkstras_algorithm(start, end)
+    path_distance = result[end][0]
+    path = [end]
+    while path[-1] != start:
+        path.append(result[path[-1]][1])
+    selected.clear()
+    print(path_distance, path[::-1])  # Should write more console output later
 
 def escape():
-    """Unselect selected or quit edge_mode."""
-    global edge_mode
+    """Unselect selected, quit edge_mode, clear path, remove Select classes."""
+    global edge_mode, to_check
     if selected:
         selected.clear()
     elif edge_mode:
         edge_mode = False
-
+    elif path:
+        path.clear()
+    else:
+        # Should write separate list for Select class...
+        to_check = [func for func in to_check if type(func) is not Select]
 
 # Functionality
-Select(edge_mode_func, 2)
+Keys(Halt(lambda: Select(dijkstras_algorithm, 2, True, lambda: len(selected) == 2), key_cooldown), pg.K_j)
 Keys(Halt(save, key_cooldown), [pg.K_LCTRL, pg.K_s])
 Keys(Halt(load, key_cooldown), [pg.K_LCTRL, pg.K_l])
 Keys(Halt(select_all, key_cooldown), [pg.K_LCTRL, pg.K_a])
@@ -232,6 +253,7 @@ Keys(lambda: move(0, move_speed), pg.K_DOWN, block=False)
 Keys(lambda: move(-move_speed, 0), pg.K_LEFT, block=False)
 Keys(lambda: move(move_speed, 0), pg.K_RIGHT, block=False)
 
+load(r"graphs\Fri Jul 29 10-28-40 2022.json")  # Feel this needs to be here.
 
 # Main cycle.
 executing = True
@@ -245,12 +267,13 @@ while executing:
     tick_all()
 
     main_window.fill(background)
-    # edges and their weights
-    for edge in graph.get_edges():
+    # edges
+    edges = graph.get_edges()
+    for edge in edges:
         pg.draw.line(main_window, edge_color, dots[edge[0]], dots[edge[1]], edge_width)
-        number = number_font.render(str(graph.get_weight(edge[0], edge[1])), True, edge_number_color)
-        center = (round((dots[edge[0]][0] + dots[edge[1]][0])/2), round((dots[edge[0]][1] + dots[edge[1]][1])/2))
-        main_window.blit(number, number.get_rect(center=center))
+    # path edges
+    for i in range(len(path)-1):
+        pg.draw.line(main_window, path_color, dots[path[i]], dots[path[i+1]], path_width)
     # main dots
     for dot, pos in dots.items():
         pg.draw.circle(main_window, dot_color, pos, dot_radius)
@@ -261,9 +284,19 @@ while executing:
         pg.draw.circle(main_window, selected_color, dots[dot], dot_radius)
         number = number_font.render(dot, True, selected_number_color)
         main_window.blit(number, number.get_rect(center=(dots[dot][0], dots[dot][1]-1)))
+    # weight of the edges
+    for edge in edges:
+        number = number_font.render(str(graph.get_weight(edge[0], edge[1])), True, edge_number_color)
+        center = (round((dots[edge[0]][0] + dots[edge[1]][0])/2), round((dots[edge[0]][1] + dots[edge[1]][1])/2))
+        main_window.blit(number, number.get_rect(center=center))
     # text
     text = text_font.render("Edge mode", True, text_on_colour if edge_mode else text_off_colour)
-    main_window.blit(text, (5, 0))
+    main_window.blit(text, text.get_rect(right=W-5))
+    text = text_font.render("Pending selection", True, text_on_colour if type(to_check[0]) is Select else text_off_colour)
+    main_window.blit(text, (5,0))
+    if path_distance:
+        text = text_font.render(str(path_distance), True, text_on_colour)
+        main_window.blit(text, text.get_rect(centerx = W/2))
 
     pg.display.update()
     timer.tick(FPS)
