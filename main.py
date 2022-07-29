@@ -1,9 +1,13 @@
 import pygame as pg
+from Graphs import Graph
+import json
+from time import ctime
 
 
 # Timer
 FPS = 60
 timer = pg.time.Clock()
+key_cooldown = FPS/5
 
 # Graphic
 pg.init()
@@ -11,8 +15,23 @@ W, H = 1920/2, 1080/2
 main_window = pg.display.set_mode((W, H))
 # colors
 background = (0, 0, 0)
+dot_color = (255, 255, 255)
+dot_number_color = (255, 0, 0)
+edge_color = (0, 255, 0)
+edge_number_color = (255, 0, 255)
+selected_color = (255, 0, 255)
+selected_number_color = (0, 255, 0)
+# sizes
+edge_width = 4
+dot_radius = 15
+# fonts
+number_font = pg.font.SysFont("Comic Sans MS", dot_radius*2)
 
 # Data
+graph = Graph()
+dots = {}
+dot_name = 0
+selected = []
 to_tick = []
 to_check = []
 keyboard = pg.key.get_pressed() # For later use
@@ -84,9 +103,62 @@ def check_all():
             break
 
 
-test_func = Halt(lambda: print("Works"), FPS/2)
-test_keys = Keys(test_func, [pg.K_a, pg.K_d], pg.K_p, pg.K_q)
-test_keys2 = Keys(Halt(lambda: print("Works 2"), FPS), pg.K_q, pg.K_s)
+# Main functions
+def distance(pos1: tuple, pos2: tuple) -> int:
+    """Return the distance between two positions."""
+    return int(((pos1[0]-pos2[0])**2 + (pos1[1]-pos2[1])**2) ** 0.5)
+
+def find_dot(position: tuple, dot_rad: int):
+    """Find a dot close to the position."""
+    for dot in dots:
+        if distance(position, dots[dot]) <= dot_rad:
+            return dot
+
+def add_dot():
+    """Add a dot to the graph."""
+    global dot_name
+    mouse_position = pg.mouse.get_pos()
+    if find_dot(mouse_position, dot_radius*2) is None:
+        dots[str(dot_name)] = mouse_position
+        graph.add_vertex(str(dot_name))
+        dot_name += 1
+
+def select_dot():
+    """Try to find a dot and select or unselect it."""
+    mouse_position = pg.mouse.get_pos()
+    dot = find_dot(mouse_position, dot_radius)
+    if dot in selected:
+        selected.remove(dot)
+    elif dot is not None:
+        selected.append(dot)
+
+def rem_selected():
+    """Remove selected dots from the graph."""
+    for dot in selected:
+        del dots[dot]
+        graph.rem_vertex(dot)
+    selected.clear()
+
+def connect_dots():
+    """Add or remove an edge between two dots."""
+    if len(selected) == 2:
+        first, second = selected
+        if not graph.rem_edge(first, second):
+            graph.add_edge(first, second, distance(dots[first], dots[second]))
+
+def escape():
+    """Undo selection."""
+    if selected:
+        selected.clear()
+
+
+# Functionality
+Keys(Halt(add_dot, key_cooldown), pg.K_a)
+Keys(Halt(select_dot, key_cooldown), pg.K_s)
+Keys(Halt(escape, key_cooldown), pg.K_ESCAPE)
+Keys(Halt(rem_selected, key_cooldown), pg.K_d, pg.K_DELETE)
+Keys(Halt(connect_dots, key_cooldown), pg.K_c, pg.K_e)
+
 
 executing = True
 while executing:
@@ -95,10 +167,26 @@ while executing:
             executing = False
 
     keyboard = pg.key.get_pressed()
-    main_window.fill(background)
-
     check_all()
     tick_all()
+
+    main_window.fill(background)
+    # edges and their weights
+    for edge in graph.get_edges():
+        pg.draw.line(main_window, edge_color, dots[edge[0]], dots[edge[1]], edge_width)
+        number = number_font.render(str(graph.get_weight(edge[0], edge[1])), True, edge_number_color)
+        center = (round((dots[edge[0]][0] + dots[edge[1]][0])/2), round((dots[edge[0]][1] + dots[edge[1]][1])/2))
+        main_window.blit(number, number.get_rect(center=center))
+    # main dots
+    for dot, pos in dots.items():
+        pg.draw.circle(main_window, dot_color, pos, dot_radius)
+        number = number_font.render(dot, True, dot_number_color)
+        main_window.blit(number, number.get_rect(center=(pos[0], pos[1]-1)))
+    # selected dots
+    for dot in selected:
+        pg.draw.circle(main_window, selected_color, dots[dot], dot_radius)
+        number = number_font.render(dot, True, selected_number_color)
+        main_window.blit(number, number.get_rect(center=(dots[dot][0], dots[dot][1]-1)))
 
     pg.display.update()
     timer.tick(FPS)
