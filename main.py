@@ -21,12 +21,15 @@ edge_color = (0, 255, 0)
 edge_number_color = (255, 0, 255)
 selected_color = (255, 0, 255)
 selected_number_color = (0, 255, 0)
+text_on_colour = (100, 255, 100)
+text_off_colour = (255, 100, 100)
 # sizes
 edge_width = 4
 dot_radius = 15
 move_speed = 1
 # fonts
 number_font = pg.font.SysFont("Comic Sans MS", dot_radius*2)
+text_font = pg.font.SysFont("Arial", 40)
 
 # Data
 graph = Graph()
@@ -36,6 +39,7 @@ selected = []
 to_tick = []
 to_check = []
 keyboard = pg.key.get_pressed() # For later use
+edge_mode = False
 
 
 # Classes and supporting functions
@@ -64,10 +68,6 @@ class Halt:
             self.current = self.skip_frames
             return True
         return False
-
-def tick_all():
-    for func in to_tick:
-        func.tick()
 
 
 class Keys:
@@ -98,6 +98,28 @@ class Keys:
             self.func(*args, **kwargs)
             return True
         return False
+
+
+class Select:
+    """Call given function when given number of dots were selected."""
+    def __init__(self, func, number: int, block: bool = False) -> None:
+        self.func = func
+        self.number = number
+        self.block = block
+        to_check.insert(0, self) # So it won't be blocked.
+
+    def check(self):
+        """return True if len(selected) has reached the number, else False."""
+        if len(selected) == self.number:
+            self.func()
+            to_check.remove(self)
+            return True
+        return False
+
+
+def tick_all():
+    for func in to_tick:
+        func.tick()
 
 def check_all():
     for func in to_check:
@@ -169,21 +191,34 @@ def rem_selected():
         graph.rem_vertex(dot)
     selected.clear()
 
-def connect_dots():
+def edge_mode_func():
     """Add or remove an edge between two dots."""
-    if len(selected) == 2:
+    if edge_mode:
         first, second = selected
         if not graph.rem_edge(first, second):
             graph.add_edge(first, second, distance(dots[first], dots[second]))
-        selected.clear()
+        selected.remove(selected[0])
+        Select(edge_mode_func, 2) # The old one will remove itself
+
+def toggle_edge_mode():
+    global edge_mode
+    if edge_mode:
+        edge_mode = False
+    else:
+        edge_mode = True
+        Select(edge_mode_func, 2)
 
 def escape():
-    """Undo selection."""
+    """Unselect selected or quit edge_mode."""
+    global edge_mode
     if selected:
         selected.clear()
+    elif edge_mode:
+        edge_mode = False
 
 
 # Functionality
+Select(edge_mode_func, 2)
 Keys(Halt(save, key_cooldown), [pg.K_LCTRL, pg.K_s])
 Keys(Halt(load, key_cooldown), [pg.K_LCTRL, pg.K_l])
 Keys(Halt(select_all, key_cooldown), [pg.K_LCTRL, pg.K_a])
@@ -191,13 +226,14 @@ Keys(Halt(escape, key_cooldown), pg.K_ESCAPE)
 Keys(Halt(add_dot, key_cooldown), pg.K_a)
 Keys(Halt(select_dot, key_cooldown), pg.K_s)
 Keys(Halt(rem_selected, key_cooldown), pg.K_d, pg.K_DELETE)
-Keys(Halt(connect_dots, key_cooldown), pg.K_c, pg.K_e)
+Keys(Halt(toggle_edge_mode, key_cooldown), pg.K_c, pg.K_e)
 Keys(lambda: move(0, -move_speed), pg.K_UP, block=False)
 Keys(lambda: move(0, move_speed), pg.K_DOWN, block=False)
 Keys(lambda: move(-move_speed, 0), pg.K_LEFT, block=False)
 Keys(lambda: move(move_speed, 0), pg.K_RIGHT, block=False)
 
 
+# Main cycle.
 executing = True
 while executing:
     for el in pg.event.get():
@@ -225,6 +261,9 @@ while executing:
         pg.draw.circle(main_window, selected_color, dots[dot], dot_radius)
         number = number_font.render(dot, True, selected_number_color)
         main_window.blit(number, number.get_rect(center=(dots[dot][0], dots[dot][1]-1)))
+    # text
+    text = text_font.render("Edge mode", True, text_on_colour if edge_mode else text_off_colour)
+    main_window.blit(text, (5, 0))
 
     pg.display.update()
     timer.tick(FPS)
