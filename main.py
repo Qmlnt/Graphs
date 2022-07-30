@@ -143,21 +143,29 @@ def check_all():
 # Main functions
 def save(save_as: str = None):
     """Save the graph."""
-    if not save_as:
-        save_as = f"graphs/{ctime()}.json".replace(':', '-')
-    with open(save_as, "w") as file:
-        json.dump([dot_name, dots, graph.graph], file)
-    print("Saved to ", save_as)
+    try:
+        if not save_as:
+            save_as = f"graphs/{ctime()}.json".replace(':', '-')
+        with open(save_as, "w") as file:
+            json.dump([dot_name, dots, graph.graph], file)
+        print("Saved to: ", save_as)
+    except Exception as exc:
+        print("Could not save:", exc)
+        print("Data to be written to file:")
+        print([dot_name, dots, graph.graph])
 
 def load(path: str = None):
     """Load some graph."""
     global dot_name, dots, graph
-    selected.clear()
     if not path:
         path = input("What file to open: ")
-    with open(path, 'r') as file:
-        dot_name, dots, graph.graph = json.load(file)
-    print("Loaded from ", path)
+    try:
+        with open(path, 'r') as file:
+            dot_name, dots, graph.graph = json.load(file)
+        selected.clear()
+        print("Loaded from: ", path)
+    except Exception as exc:
+        print("Could not load the graph:", exc)
 
 
 def distance(pos1: tuple, pos2: tuple) -> int:
