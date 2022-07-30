@@ -31,7 +31,8 @@ dot_radius = 15
 move_speed = 1
 # fonts
 number_font = pg.font.SysFont("Comic Sans MS", dot_radius*2)
-text_font = pg.font.SysFont("Arial", 40)
+def_font = "Arial"
+def_text_size = 40
 
 # Data
 graph = Graph()
@@ -42,6 +43,7 @@ path_distance = 0
 selected = []
 to_tick = []
 to_check = []
+to_select = []
 keyboard = pg.key.get_pressed() # For later use
 edge_mode = False
 
@@ -97,29 +99,31 @@ class Keys:
         return False
 
     def check(self, *args, **kwargs) -> bool:
-        """Check the keys and return True, or return False."""
+        """Check the keys and return True if not block, else False."""
         if self.key_check(self.keys):
             self.func(*args, **kwargs)
-            return True
+            if self.block:
+                return True
         return False
 
 
 class Select:
     """Call given function when given number of dots were selected."""
-    def __init__(self, func, number: int, block: bool = False, stop = lambda: False) -> None:
+    def __init__(self, func, number: int, block: bool = True, stop = lambda: False) -> None:
         self.func = func
         self.number = number
         self.block = block
         self.stop = stop
-        to_check.insert(0, self) # So it won't be blocked.
+        to_select.append(self)
 
     def check(self):
-        """return True if len(selected) has reached the number, else False."""
+        """return True if not block, else False."""
         if self.stop():
-            to_check.remove(self)
+            to_select.remove(self)
         if len(selected) == self.number:
             self.func()
-            return True
+            if self.block:
+                return True
         return False
 
 
@@ -129,8 +133,11 @@ def tick_all():
 
 def check_all():
     for func in to_check:
-        if func.check() and func.block:
-                break
+        if func.check():
+            break
+    for func in to_select:
+        if func.check():
+            break
 
 
 # Main functions
@@ -151,6 +158,7 @@ def load(path: str = None):
     with open(path, 'r') as file:
         dot_name, dots, graph.graph = json.load(file)
     print("Loaded from ", path)
+
 
 def distance(pos1: tuple, pos2: tuple) -> int:
     """Return the distance between two positions."""
@@ -197,6 +205,7 @@ def rem_selected():
         graph.rem_vertex(dot)
     selected.clear()
 
+
 def edge_mode_func():
     """Add or remove an edge between two dots."""
     first, second = selected
@@ -232,11 +241,17 @@ def escape():
         selected.clear()
     elif edge_mode:
         edge_mode = False
+    elif to_select:
+        # to_select.clear() should do, but may cause problems.
+        for func in to_select:
+            func.stop = lambda: True
     elif path:
         path.clear()
-    else:
-        # Should write separate list for Select class...
-        to_check = [func for func in to_check if type(func) is not Select]
+
+def text(font: str, size: int, color: tuple, content: str) -> pg.Surface:
+    """Return rendered text."""
+    return pg.font.SysFont(font, size).render(content, True, color)
+
 
 # Functionality
 Keys(Halt(lambda: Select(dijkstras_algorithm, 2, True, lambda: len(selected) == 2), key_cooldown), pg.K_j)
@@ -252,6 +267,11 @@ Keys(lambda: move(0, -move_speed), pg.K_UP, block=False)
 Keys(lambda: move(0, move_speed), pg.K_DOWN, block=False)
 Keys(lambda: move(-move_speed, 0), pg.K_LEFT, block=False)
 Keys(lambda: move(move_speed, 0), pg.K_RIGHT, block=False)
+
+edge_mode_on_text = text(def_font, def_text_size, text_on_colour, "Edge mode")
+edge_mode_off_text = text(def_font, def_text_size, text_off_colour, "Edge mode")
+selection_on_text =  text(def_font, def_text_size, text_on_colour, "Pending selection")
+selection_off_text =  text(def_font, def_text_size, text_off_colour, "Pending selection")
 
 load(r"graphs\Fri Jul 29 10-28-40 2022.json")  # Feel this needs to be here.
 
@@ -290,13 +310,16 @@ while executing:
         center = (round((dots[edge[0]][0] + dots[edge[1]][0])/2), round((dots[edge[0]][1] + dots[edge[1]][1])/2))
         main_window.blit(number, number.get_rect(center=center))
     # text
-    text = text_font.render("Edge mode", True, text_on_colour if edge_mode else text_off_colour)
-    main_window.blit(text, text.get_rect(right=W-5))
-    text = text_font.render("Pending selection", True, text_on_colour if type(to_check[0]) is Select else text_off_colour)
-    main_window.blit(text, (5,0))
+    if edge_mode:
+        main_window.blit(edge_mode_on_text, edge_mode_on_text.get_rect(right=W-5))
+    else:
+        main_window.blit(edge_mode_off_text, edge_mode_off_text.get_rect(right=W-5))
+    # Selection
+    main_window.blit(selection_on_text if to_select else selection_off_text, (5,0))
+    # Path length
     if path_distance:
-        text = text_font.render(str(path_distance), True, text_on_colour)
-        main_window.blit(text, text.get_rect(centerx = W/2))
+        txt = text(def_font, def_text_size, text_on_colour, str(path_distance))
+        main_window.blit(txt, txt.get_rect(centerx = W/2))
 
     pg.display.update()
     timer.tick(FPS)
