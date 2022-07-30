@@ -203,6 +203,10 @@ def rem_selected():
     for dot in selected:
         del dots[dot]
         graph.rem_vertex(dot)
+        if dot in path:
+            path.clear()
+            print("The path was cleared as it had a removed dot")
+    print("Removed:", selected)
     selected.clear()
 
 
@@ -218,8 +222,10 @@ def toggle_edge_mode():
     global edge_mode
     if edge_mode:
         edge_mode = False
+        print("Edge mode off")
     else:
         edge_mode = True
+        print("Edge mode on")
         Select(edge_mode_func, 2, stop=lambda: not edge_mode)
 
 def dijkstras_algorithm():
@@ -230,9 +236,12 @@ def dijkstras_algorithm():
     path_distance = result[end][0]
     path = [end]
     while path[-1] != start:
+        if result[path[-1]][1] == '-':
+            path_distance = "Not connected!"
+            break
         path.append(result[path[-1]][1])
     selected.clear()
-    print(path_distance, path[::-1])  # Should write more console output later
+    print(path_distance, path[::-1])
 
 def escape():
     """Unselect selected, quit edge_mode, clear path, remove Select classes."""
@@ -241,6 +250,7 @@ def escape():
         selected.clear()
     elif edge_mode:
         edge_mode = False
+        print("Edge mode off")
     elif to_select:
         # to_select.clear() should do, but may cause problems.
         for func in to_select:
@@ -273,7 +283,7 @@ edge_mode_off_text = text(def_font, def_text_size, text_off_colour, "Edge mode")
 selection_on_text =  text(def_font, def_text_size, text_on_colour, "Pending selection")
 selection_off_text =  text(def_font, def_text_size, text_off_colour, "Pending selection")
 
-load(r"graphs\Fri Jul 29 10-28-40 2022.json")  # Feel this needs to be here.
+load("graphs/Sat Jul 30 09-13-52 2022.json")  # Feel like this should to be here.
 
 # Main cycle.
 executing = True
